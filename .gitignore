@@ -1,0 +1,173 @@
+# ===============================
+# GENERAL SYSTEM FILES
+# ===============================
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.log
+*.tmp
+*.swp
+*.swo
+
+# ===============================
+# ENVIRONMENT AND CREDENTIAL FILES
+# ===============================
+.env
+.env.*
+*.key
+*.pem
+*.crt
+*.cert
+*.csr
+*.p12
+*.pfx
+*.asc
+*.gpg
+*.pub
+*.private
+*.secret
+secrets/
+keys/
+config/keys/
+credentials/
+token.json
+service-account.json
+firebase-adminsdk.json
+
+# ===============================
+# PYTHON ENVIRONMENTS AND CACHES
+# ===============================
+venv/
+.venv/
+env/
+ENV/
+__pycache__/
+*.py[cod]
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+pip-wheel-metadata/
+.mypy_cache/
+.pytest_cache/
+coverage/
+htmlcov/
+
+# ===============================
+# NODE / JAVASCRIPT ENVIRONMENTS
+# ===============================
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-store/
+.cache/
+.next/
+out/
+dist/
+build/
+*.tgz
+
+# ===============================
+# LARGE MEDIA AND BINARY FILES
+# ===============================
+*.mp3
+*.wav
+*.m4a
+*.flac
+*.aac
+*.mp4
+*.mov
+*.avi
+*.mkv
+*.webm
+*.gif
+*.tiff
+*.raw
+*.zip
+*.tar
+*.gz
+*.7z
+*.rar
+*.iso
+*.dmg
+*.exe
+
+# ===============================
+# DOCUMENTS AND DATA FILES
+# ===============================
+*.pdf
+*.doc
+*.docx
+*.xls
+*.xlsx
+*.ppt
+*.pptx
+*.csv
+*.json
+*.xml
+*.yaml
+*.yml
+*.sqlite
+*.db
+*.bak
+
+# ===============================
+# IMAGE FILES (OPTIONAL IGNORE)
+# Uncomment if you want to ignore images too
+# ===============================
+# *.png
+# *.jpg
+# *.jpeg
+# *.svg
+# *.ico
+# *.heic
+# *.webp
+
+# ===============================
+# TEMPORARY OR GENERATED FILES
+# ===============================
+tmp/
+temp/
+cache/
+logs/
+output/
+exports/
+uploads/
+backups/
+*.bak
+*.old
+
+# ===============================
+# PROJECT-SPECIFIC IGNORE RULES
+# ===============================
+# Ignore auto-generated content, processed files, or compiled outputs
+*.pyc
+*.class
+*.o
+*.obj
+*.dll
+*.exe
+*.out
+
+# ===============================
+# OS / PLATFORM SPECIFIC
+# ===============================
+# macOS
+.AppleDouble
+.Spotlight-V100
+.Trashes
+
+# Windows
+ehthumbs.db
+Desktop.ini
+
+# Linux
+*~
+
+# ===============================
+# END OF FILE
+# ===============================
+
