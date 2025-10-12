@@ -5,6 +5,7 @@ A modular video generator for creating social media content
 """
 
 import sys
+import os
 import click
 from pathlib import Path
 from rich.console import Console
@@ -16,7 +17,7 @@ from rich.table import Table
 # Import config
 import config
 
-# Import modules (will implement these next)
+# Import modules
 from downloaders import youtube, instagram, pinterest
 from processors import normalizer, combiner, audio_analyzer, video_cutter
 from utils import validators, file_manager, ffmpeg_helper
@@ -63,12 +64,12 @@ def interactive_mode():
     ))
     
     try:
-        # Step 1: Download Phase
-        console.print("\n[bold cyan]📥 STEP 1: Download Videos[/bold cyan]")
-        video_paths = download_phase()
+        # Step 1: Video Source Selection
+        console.print("\n[bold cyan]📥 STEP 1: Select Video Source[/bold cyan]")
+        video_paths = video_source_phase()
         
         if not video_paths:
-            console.print("[red]No videos downloaded. Exiting.[/red]")
+            console.print("[red]No videos selected. Exiting.[/red]")
             return
         
         # Step 2: Normalization/Combination Phase
@@ -114,11 +115,63 @@ def interactive_mode():
 
 
 # ============================================================================
-# PHASE 1: DOWNLOAD
+# PHASE 1: VIDEO SOURCE SELECTION
 # ============================================================================
 
-def download_phase():
-    """Handle video downloads from various sources"""
+def video_source_phase():
+    """Handle video source selection - download, local, or both"""
+    
+    console.print("\n[dim]Choose where your videos come from[/dim]")
+    
+    # Display source options
+    table = Table(show_header=True, header_style="bold cyan")
+    table.add_column("Option", style="cyan", width=8)
+    table.add_column("Description")
+    table.add_row("1", "Download from URLs (YouTube/Instagram/Pinterest)")
+    table.add_row("2", "Use local videos from my device")
+    table.add_row("3", "Both (download + local videos)")
+    
+    console.print(table)
+    
+    choice = Prompt.ask(
+        "\n[cyan]Choose source[/cyan]",
+        choices=["1", "2", "3"],
+        default="1"
+    )
+    
+    all_videos = []
+    
+    # Option 1: Download only
+    if choice == "1":
+        all_videos = download_videos_from_urls()
+    
+    # Option 2: Local only
+    elif choice == "2":
+        all_videos = select_local_videos()
+    
+    # Option 3: Both
+    elif choice == "3":
+        console.print("\n[yellow]First, let's download videos from URLs...[/yellow]")
+        downloaded = download_videos_from_urls()
+        
+        console.print("\n[yellow]Now, let's add local videos...[/yellow]")
+        local = select_local_videos()
+        
+        all_videos = downloaded + local
+        
+        if downloaded and local:
+            console.print(f"\n[green]✓[/green] Total videos: {len(all_videos)} "
+                        f"({len(downloaded)} downloaded + {len(local)} local)")
+    
+    return all_videos
+
+
+# ============================================================================
+# DOWNLOAD FROM URLS
+# ============================================================================
+
+def download_videos_from_urls():
+    """Download videos from URLs"""
     
     console.print("\n[dim]You can download from YouTube, Instagram, or Pinterest[/dim]")
     
@@ -194,6 +247,179 @@ def download_phase():
 
 
 # ============================================================================
+# SELECT LOCAL VIDEOS
+# ============================================================================
+
+def select_local_videos():
+    """Allow user to select local video files or folders"""
+    
+    console.print("\n[dim]You can provide video file paths or folder paths[/dim]")
+    console.print("[dim]Tip: Use absolute paths or drag-and-drop files into terminal[/dim]")
+    
+    video_paths = []
+    
+    while True:
+        # Show current count
+        if video_paths:
+            console.print(f"\n[green]Current selection: {len(video_paths)} video(s)[/green]")
+        
+        # Ask for input type
+        table = Table(show_header=False, box=None)
+        table.add_column("Option", style="cyan", width=8)
+        table.add_column("Description")
+        table.add_row("1", "Add a single video file")
+        table.add_row("2", "Add all videos from a folder")
+        table.add_row("3", "Done (continue with selected videos)")
+        
+        console.print(table)
+        
+        choice = Prompt.ask(
+            f"\n[cyan]Choose option[/cyan]",
+            choices=["1", "2", "3"],
+            default="3" if video_paths else "1"
+        )
+        
+        if choice == "3":
+            break
+        
+        elif choice == "1":
+            # Single file
+            file_path = Prompt.ask("\n[cyan]Enter video file path[/cyan]")
+            
+            if not file_path:
+                continue
+            
+            # Resolve path (handle ~, relative paths, etc.)
+            resolved_path = file_manager.resolve_path(file_path)
+            
+            if not resolved_path:
+                console.print("[red]File not found. Please check the path.[/red]")
+                continue
+            
+            # Validate video file
+            is_valid, message = validators.validate_local_video(resolved_path)
+            
+            if not is_valid:
+                console.print(f"[red]Invalid video: {message}[/red]")
+                
+                # Ask if user wants to try anyway
+                if Confirm.ask("[yellow]Try to use this file anyway?[/yellow]", default=False):
+                    video_paths.append(resolved_path)
+                    console.print(f"[yellow]⚠[/yellow] Added (not validated): {Path(resolved_path).name}")
+                continue
+            
+            video_paths.append(resolved_path)
+            
+            # Show file info
+            info = ffmpeg_helper.get_video_info(resolved_path)
+            if info:
+                console.print(
+                    f"[green]✓[/green] Added: {Path(resolved_path).name} "
+                    f"({info['width']}x{info['height']}, {info['duration']:.1f}s)"
+                )
+            else:
+                console.print(f"[green]✓[/green] Added: {Path(resolved_path).name}")
+        
+        elif choice == "2":
+            # Folder of videos
+            folder_path = Prompt.ask("\n[cyan]Enter folder path[/cyan]")
+            
+            if not folder_path:
+                continue
+            
+            # Resolve path
+            resolved_path = file_manager.resolve_path(folder_path)
+            
+            if not resolved_path or not os.path.isdir(resolved_path):
+                console.print("[red]Folder not found. Please check the path.[/red]")
+                continue
+            
+            # Check if folder has videos
+            has_videos, count = validators.is_video_folder(resolved_path)
+            
+            if not has_videos:
+                console.print("[red]No video files found in this folder.[/red]")
+                continue
+            
+            # Find all videos
+            console.print(f"\n[yellow]Found {count} video(s) in folder[/yellow]")
+            
+            # Ask if recursive search
+            recursive = Confirm.ask(
+                "[cyan]Search in subfolders too?[/cyan]",
+                default=False
+            )
+            
+            found_videos = file_manager.find_videos_in_folder(resolved_path, recursive)
+            
+            if recursive and len(found_videos) > count:
+                console.print(f"[yellow]Found {len(found_videos)} total videos (including subfolders)[/yellow]")
+            
+            # Ask to select all or individual
+            if len(found_videos) <= 10:
+                # Few videos - show list and ask individually
+                console.print("\n[bold]Select videos to include:[/bold]")
+                
+                for video in found_videos:
+                    # Get video info for display
+                    info = ffmpeg_helper.get_video_info(video)
+                    display_name = Path(video).name
+                    
+                    if info:
+                        display_info = f"{display_name} ({info['width']}x{info['height']}, {info['duration']:.1f}s)"
+                    else:
+                        display_info = display_name
+                    
+                    if Confirm.ask(f"[cyan]Include {display_info}?[/cyan]", default=True):
+                        video_paths.append(video)
+                        console.print(f"[green]✓[/green] Added")
+            else:
+                # Many videos - ask to include all or filter
+                console.print(f"\n[yellow]Found {len(found_videos)} videos[/yellow]")
+                
+                include_all = Confirm.ask(
+                    "[cyan]Include all videos from this folder?[/cyan]",
+                    default=True
+                )
+                
+                if include_all:
+                    video_paths.extend(found_videos)
+                    console.print(f"[green]✓[/green] Added {len(found_videos)} videos")
+                else:
+                    # Filter by criteria
+                    console.print("\n[yellow]Let's filter the videos...[/yellow]")
+                    
+                    # Ask for minimum duration
+                    min_duration = Prompt.ask(
+                        "[cyan]Minimum video duration (seconds)[/cyan]",
+                        default="0"
+                    )
+                    
+                    try:
+                        min_duration = float(min_duration)
+                    except ValueError:
+                        min_duration = 0.0
+                    
+                    # Filter videos
+                    filtered_count = 0
+                    for video in found_videos:
+                        info = ffmpeg_helper.get_video_info(video)
+                        if info and info['duration'] >= min_duration:
+                            video_paths.append(video)
+                            filtered_count += 1
+                    
+                    console.print(f"[green]✓[/green] Added {filtered_count} videos (duration >= {min_duration}s)")
+    
+    # Summary
+    if video_paths:
+        console.print(f"\n[green]✓[/green] Selected {len(video_paths)} local video(s)")
+    else:
+        console.print("\n[yellow]No local videos selected[/yellow]")
+    
+    return video_paths
+
+
+# ============================================================================
 # PHASE 2: PROCESS VIDEOS
 # ============================================================================
 
@@ -250,8 +476,9 @@ def process_videos_phase(video_paths):
     if choice == "2":
         # Let user select videos
         selected = []
+        console.print("\n[bold]Select videos to include:[/bold]")
         for i, path in enumerate(video_paths, 1):
-            if Confirm.ask(f"[cyan]Include {Path(path).name}?[/cyan]", default=True):
+            if Confirm.ask(f"[cyan]{i}. Include {Path(path).name}?[/cyan]", default=True):
                 selected.append(path)
         video_paths = selected
     
@@ -315,17 +542,29 @@ def audio_selection_phase():
             "\n[cyan]Enter audio file path[/cyan]"
         )
         
-        # Validate audio file
-        if not Path(audio_path).exists():
+        # Resolve path
+        resolved_path = file_manager.resolve_path(audio_path)
+        
+        if not resolved_path:
             console.print("[red]File not found. Please try again.[/red]")
             continue
         
-        if not validators.is_valid_audio(audio_path):
+        # Validate audio file
+        if not validators.is_valid_audio(resolved_path):
             console.print("[red]Invalid audio file. Please provide MP3, WAV, M4A, etc.[/red]")
             continue
         
-        console.print(f"[green]✓[/green] Audio: {Path(audio_path).name}")
-        return audio_path
+        # Get audio info
+        info = ffmpeg_helper.get_audio_info(resolved_path)
+        if info:
+            console.print(
+                f"[green]✓[/green] Audio: {Path(resolved_path).name} "
+                f"({info['duration']:.1f}s, {info['codec']})"
+            )
+        else:
+            console.print(f"[green]✓[/green] Audio: {Path(resolved_path).name}")
+        
+        return resolved_path
 
 
 # ============================================================================
@@ -473,7 +712,9 @@ def generate_video_phase(video_path, audio_path, cut_config):
 # ============================================================================
 
 @cli.command()
-@click.option('--urls', required=True, help='Comma-separated URLs to download')
+@click.option('--urls', help='Comma-separated URLs to download')
+@click.option('--local-videos', help='Comma-separated local video paths')
+@click.option('--local-folder', help='Folder containing local videos')
 @click.option('--download-audio', is_flag=True, help='Download audio separately')
 @click.option('--audio-path', required=True, help='Path to audio file')
 @click.option('--cut-mode', type=click.Choice(['beats', 'vocals']), default='beats')
@@ -482,7 +723,8 @@ def generate_video_phase(video_path, audio_path, cut_config):
 @click.option('--audio-start', type=float, default=0, help='Audio start time (seconds)')
 @click.option('--audio-end', type=float, default=None, help='Audio end time (seconds)')
 @click.option('--output', default='final_reel.mp4', help='Output filename')
-def generate(urls, download_audio, audio_path, cut_mode, interval, order, audio_start, audio_end, output):
+def generate(urls, local_videos, local_folder, download_audio, audio_path, cut_mode, 
+            interval, order, audio_start, audio_end, output):
     """Generate video using command-line flags (non-interactive)"""
     
     console.print(Panel.fit(
@@ -491,17 +733,131 @@ def generate(urls, download_audio, audio_path, cut_mode, interval, order, audio_
     ))
     
     try:
-        # Parse URLs
-        url_list = [u.strip() for u in urls.split(',')]
+        all_videos = []
         
-        # Download
-        console.print("\n[cyan]📥 Downloading videos...[/cyan]")
-        # ... (similar logic to interactive mode)
+        # Download from URLs
+        if urls:
+            url_list = [u.strip() for u in urls.split(',')]
+            console.print(f"\n[cyan]📥 Downloading {len(url_list)} video(s)...[/cyan]")
+            
+            for url in url_list:
+                source = validators.detect_source(url)
+                if source == 'youtube':
+                    result = youtube.download(url, download_audio=download_audio)
+                elif source == 'instagram':
+                    result = instagram.download(url)
+                elif source == 'pinterest':
+                    result = pinterest.download(url)
+                else:
+                    continue
+                
+                if result and result.get('video_path'):
+                    all_videos.append(result['video_path'])
         
-        console.print("[green]✅ Generation complete![/green]")
+        # Add local videos
+        if local_videos:
+            video_list = [v.strip() for v in local_videos.split(',')]
+            for video in video_list:
+                resolved = file_manager.resolve_path(video)
+                if resolved and validators.is_valid_video(resolved):
+                    all_videos.append(resolved)
+        
+        # Add videos from folder
+        if local_folder:
+            resolved_folder = file_manager.resolve_path(local_folder)
+            if resolved_folder:
+                folder_videos = file_manager.find_videos_in_folder(resolved_folder)
+                all_videos.extend(folder_videos)
+        
+        if not all_videos:
+            console.print("[red]No valid videos found.[/red]")
+            sys.exit(1)
+        
+        console.print(f"[green]✓[/green] Found {len(all_videos)} video(s)")
+        
+        # Process videos - ALWAYS NORMALIZE TO REEL FORMAT (FIXED)
+        console.print("\n[cyan]🔧 Processing videos...[/cyan]")
+        console.print("[cyan]Normalizing to reel format (1080x1920)...[/cyan]")
+        
+        if len(all_videos) == 1:
+            # Single video - normalize it
+            with console.status("[cyan]Normalizing video...[/cyan]"):
+                processed = normalizer.normalize_video(
+                    all_videos[0],
+                    target_resolution=config.RESOLUTIONS['reels'],
+                    target_fps=config.TARGET_FPS,
+                    crop_mode='center'
+                )
+            
+            if not processed:
+                console.print("[red]❌ Video normalization failed[/red]")
+                sys.exit(1)
+            
+            console.print(f"[green]✓[/green] Normalized to 1080x1920")
+        else:
+            # Multiple videos - normalize all then merge
+            normalized = normalizer.batch_normalize(
+                all_videos,
+                target_resolution=config.RESOLUTIONS['reels'],
+                target_fps=config.TARGET_FPS
+            )
+            
+            if not normalized:
+                console.print("[red]❌ Video normalization failed[/red]")
+                sys.exit(1)
+            
+            processed = combiner.merge_videos(normalized)
+            
+            if not processed:
+                console.print("[red]❌ Video merging failed[/red]")
+                sys.exit(1)
+            
+            console.print(f"[green]✓[/green] Normalized and combined {len(normalized)} videos")
+        
+        # Analyze audio
+        console.print("\n[cyan]🎵 Analyzing audio...[/cyan]")
+        if cut_mode == 'beats':
+            cut_points = audio_analyzer.detect_beats(audio_path)
+        else:
+            cut_points = audio_analyzer.detect_vocal_changes(audio_path)
+        
+        console.print(f"[green]✓[/green] Found {len(cut_points)} cut points")
+        
+        filtered_points = cut_points[::interval]
+        console.print(f"[green]✓[/green] Using {len(filtered_points)} points (every {interval})")
+        
+        # Generate video
+        console.print("\n[cyan]🎬 Generating video...[/cyan]")
+        
+        audio_duration = audio_end if audio_end else ffmpeg_helper.get_audio_duration(audio_path)
+        
+        segments = video_cutter.create_segments(
+            video_path=processed,
+            cut_points=filtered_points,
+            order=order,
+            audio_duration=audio_duration - audio_start
+        )
+        
+        console.print(f"[green]✓[/green] Created {len(segments)} segments")
+        
+        final = video_cutter.merge_with_audio(
+            segments=segments,
+            audio_path=audio_path,
+            audio_start=audio_start,
+            audio_end=audio_duration,
+            output_path=str(config.OUTPUTS_DIR / output)
+        )
+        
+        if final:
+            console.print(f"\n[green]✅ Video saved: {final}[/green]")
+        else:
+            console.print("[red]❌ Generation failed[/red]")
+            sys.exit(1)
     
     except Exception as e:
         console.print(f"[red]❌ Error: {str(e)}[/red]")
+        if config.DEBUG:
+            raise
         sys.exit(1)
 
 
@@ -513,6 +869,7 @@ if __name__ == '__main__':
     # Check for FFmpeg
     if not ffmpeg_helper.check_ffmpeg():
         console.print("[red]❌ FFmpeg not found. Please install FFmpeg first.[/red]")
+        console.print("[yellow]Install: brew install ffmpeg (macOS) or apt install ffmpeg (Linux)[/yellow]")
         sys.exit(1)
     
     cli()

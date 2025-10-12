@@ -333,6 +333,215 @@ class FileManager:
         
         return files
     
+    # ========================================================================
+    # NEW: PATH RESOLUTION AND VIDEO FINDING HELPERS
+    # ========================================================================
+    
+    def resolve_path(self, path: str) -> Optional[str]:
+        """
+        Resolve relative/absolute paths and expand user home directory
+        
+        Args:
+            path: File or folder path (can be relative, absolute, or with ~)
+            
+        Returns:
+            Absolute resolved path or None if invalid
+        """
+        try:
+            # Strip quotes if present (from drag-and-drop)
+            path = path.strip().strip('"').strip("'")
+            
+            # Expand user home directory (~)
+            expanded = os.path.expanduser(path)
+            
+            # Convert to absolute path
+            absolute = os.path.abspath(expanded)
+            
+            # Check if exists
+            if os.path.exists(absolute):
+                return absolute
+            
+            # Try relative to project root
+            relative_to_root = os.path.join(str(self.base_dir), path)
+            if os.path.exists(relative_to_root):
+                return os.path.abspath(relative_to_root)
+            
+            return None
+        except Exception as e:
+            if config.DEBUG:
+                print(f"Error resolving path: {str(e)}")
+            return None
+    
+    def find_videos_in_folder(
+        self,
+        folder_path: str,
+        recursive: bool = False
+    ) -> List[str]:
+        """
+        Find all video files in a folder
+        
+        Args:
+            folder_path: Path to folder
+            recursive: Search recursively in subfolders
+            
+        Returns:
+            List of video file paths (sorted)
+        """
+        videos = self.list_files(
+            folder_path,
+            extensions=config.VIDEO_EXTENSIONS,
+            recursive=recursive
+        )
+        
+        # Sort by name for consistent ordering
+        videos.sort()
+        
+        return videos
+    
+    def find_audios_in_folder(
+        self,
+        folder_path: str,
+        recursive: bool = False
+    ) -> List[str]:
+        """
+        Find all audio files in a folder
+        
+        Args:
+            folder_path: Path to folder
+            recursive: Search recursively in subfolders
+            
+        Returns:
+            List of audio file paths (sorted)
+        """
+        audios = self.list_files(
+            folder_path,
+            extensions=config.AUDIO_EXTENSIONS,
+            recursive=recursive
+        )
+        
+        # Sort by name
+        audios.sort()
+        
+        return audios
+    
+    def normalize_path(self, path: str) -> str:
+        """
+        Normalize path (resolve .., ., etc.)
+        
+        Args:
+            path: Path to normalize
+            
+        Returns:
+            Normalized path
+        """
+        return os.path.normpath(path)
+    
+    def is_relative_path(self, path: str) -> bool:
+        """
+        Check if path is relative
+        
+        Args:
+            path: Path to check
+            
+        Returns:
+            True if relative, False if absolute
+        """
+        return not os.path.isabs(path)
+    
+    def make_relative_path(self, path: str, base: Optional[str] = None) -> str:
+        """
+        Make path relative to base directory
+        
+        Args:
+            path: Absolute path
+            base: Base directory (defaults to project root)
+            
+        Returns:
+            Relative path
+        """
+        if base is None:
+            base = str(self.base_dir)
+        
+        try:
+            return os.path.relpath(path, base)
+        except ValueError:
+            # Can't make relative (different drives on Windows)
+            return path
+    
+    def get_file_extension(self, filepath: str) -> str:
+        """
+        Get file extension (lowercase, with dot)
+        
+        Args:
+            filepath: Path to file
+            
+        Returns:
+            Extension (e.g., '.mp4')
+        """
+        return Path(filepath).suffix.lower()
+    
+    def get_filename(self, filepath: str, with_extension: bool = True) -> str:
+        """
+        Get filename from path
+        
+        Args:
+            filepath: Path to file
+            with_extension: Include extension
+            
+        Returns:
+            Filename
+        """
+        path_obj = Path(filepath)
+        if with_extension:
+            return path_obj.name
+        else:
+            return path_obj.stem
+    
+    def change_extension(self, filepath: str, new_extension: str) -> str:
+        """
+        Change file extension
+        
+        Args:
+            filepath: Original file path
+            new_extension: New extension (with or without dot)
+            
+        Returns:
+            New file path with changed extension
+        """
+        if not new_extension.startswith('.'):
+            new_extension = '.' + new_extension
+        
+        path_obj = Path(filepath)
+        return str(path_obj.with_suffix(new_extension))
+    
+    def ensure_unique_path(self, filepath: str) -> str:
+        """
+        Ensure path is unique by adding numbers if file exists
+        
+        Args:
+            filepath: Desired file path
+            
+        Returns:
+            Unique file path
+        """
+        if not os.path.exists(filepath):
+            return filepath
+        
+        path_obj = Path(filepath)
+        base = path_obj.stem
+        ext = path_obj.suffix
+        parent = path_obj.parent
+        
+        counter = 1
+        while True:
+            new_name = f"{base}_{counter}{ext}"
+            new_path = parent / new_name
+            
+            if not new_path.exists():
+                return str(new_path)
+            
+            counter += 1
+    
     def get_disk_space(self) -> Dict[str, float]:
         """
         Get disk space information
@@ -355,7 +564,10 @@ class FileManager:
             return {}
 
 
-# Module-level convenience functions
+# ============================================================================
+# MODULE-LEVEL CONVENIENCE FUNCTIONS
+# ============================================================================
+
 _global_manager = None
 
 
@@ -426,3 +638,43 @@ def get_downloads_dir() -> Path:
 def get_outputs_dir() -> Path:
     """Get outputs directory path"""
     return config.OUTPUTS_DIR
+
+
+# ============================================================================
+# NEW: PATH RESOLUTION FUNCTIONS
+# ============================================================================
+
+def resolve_path(path: str) -> Optional[str]:
+    """Resolve file path (handles ~, relative paths, etc.)"""
+    manager = get_manager()
+    return manager.resolve_path(path)
+
+
+def find_videos_in_folder(folder_path: str, recursive: bool = False) -> List[str]:
+    """Find all videos in folder"""
+    manager = get_manager()
+    return manager.find_videos_in_folder(folder_path, recursive)
+
+
+def find_audios_in_folder(folder_path: str, recursive: bool = False) -> List[str]:
+    """Find all audio files in folder"""
+    manager = get_manager()
+    return manager.find_audios_in_folder(folder_path, recursive)
+
+
+def normalize_path(path: str) -> str:
+    """Normalize path"""
+    manager = get_manager()
+    return manager.normalize_path(path)
+
+
+def get_filename(filepath: str, with_extension: bool = True) -> str:
+    """Get filename from path"""
+    manager = get_manager()
+    return manager.get_filename(filepath, with_extension)
+
+
+def ensure_unique_path(filepath: str) -> str:
+    """Ensure path is unique"""
+    manager = get_manager()
+    return manager.ensure_unique_path(filepath)

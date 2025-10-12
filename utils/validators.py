@@ -141,6 +141,174 @@ class Validator:
                 print(f"Error extracting video ID: {str(e)}")
             return None
     
+    # ========================================================================
+    # NEW: LOCAL PATH VALIDATION
+    # ========================================================================
+    
+    @staticmethod
+    def is_valid_path(path: str) -> bool:
+        """
+        Check if path exists and is accessible
+        
+        Args:
+            path: File or folder path
+            
+        Returns:
+            True if valid path, False otherwise
+        """
+        try:
+            # Expand user home directory and resolve path
+            expanded = os.path.expanduser(path)
+            resolved = os.path.abspath(expanded)
+            
+            # Check if exists and is readable
+            if not os.path.exists(resolved):
+                return False
+            
+            if not os.access(resolved, os.R_OK):
+                return False
+            
+            return True
+        except Exception:
+            return False
+    
+    @staticmethod
+    def is_video_folder(folder_path: str) -> Tuple[bool, int]:
+        """
+        Check if folder contains video files
+        
+        Args:
+            folder_path: Path to folder
+            
+        Returns:
+            Tuple of (has_videos, count)
+        """
+        try:
+            if not os.path.isdir(folder_path):
+                return False, 0
+            
+            video_count = 0
+            for item in os.listdir(folder_path):
+                item_path = os.path.join(folder_path, item)
+                if os.path.isfile(item_path):
+                    ext = Path(item_path).suffix.lower()
+                    if ext in config.VIDEO_EXTENSIONS:
+                        video_count += 1
+            
+            return video_count > 0, video_count
+        
+        except Exception as e:
+            if config.DEBUG:
+                print(f"Error checking video folder: {str(e)}")
+            return False, 0
+    
+    @staticmethod
+    def validate_local_video(filepath: str) -> Tuple[bool, str]:
+        """
+        Comprehensive validation for local video file
+        
+        Args:
+            filepath: Path to video file
+            
+        Returns:
+            Tuple of (is_valid, message)
+        """
+        # Check if file exists
+        if not os.path.exists(filepath):
+            return False, "File does not exist"
+        
+        # Check if it's a file (not a directory)
+        if not os.path.isfile(filepath):
+            return False, "Path is not a file"
+        
+        # Check if readable
+        if not os.access(filepath, os.R_OK):
+            return False, "File is not readable (permission denied)"
+        
+        # Check extension
+        ext = Path(filepath).suffix.lower()
+        if ext not in config.VIDEO_EXTENSIONS:
+            return False, f"Unsupported video format: {ext}"
+        
+        # Validate with FFmpeg (can read video info)
+        try:
+            info = get_video_info(filepath)
+            if not info:
+                return False, "Cannot read video file (may be corrupted)"
+            
+            # Basic sanity checks
+            if info.get('duration', 0) <= 0:
+                return False, "Invalid video duration"
+            
+            if info.get('width', 0) <= 0 or info.get('height', 0) <= 0:
+                return False, "Invalid video resolution"
+        
+        except Exception as e:
+            return False, f"Error reading video: {str(e)}"
+        
+        # Check file size
+        size_valid, size_msg = Validator.validate_file_size(filepath)
+        if not size_valid:
+            return False, size_msg
+        
+        # Check duration
+        duration_valid, duration_msg = Validator.validate_video_duration(filepath)
+        if not duration_valid:
+            return False, duration_msg
+        
+        return True, "Video is valid"
+    
+    @staticmethod
+    def validate_local_audio(filepath: str) -> Tuple[bool, str]:
+        """
+        Comprehensive validation for local audio file
+        
+        Args:
+            filepath: Path to audio file
+            
+        Returns:
+            Tuple of (is_valid, message)
+        """
+        # Check if file exists
+        if not os.path.exists(filepath):
+            return False, "File does not exist"
+        
+        # Check if it's a file
+        if not os.path.isfile(filepath):
+            return False, "Path is not a file"
+        
+        # Check if readable
+        if not os.access(filepath, os.R_OK):
+            return False, "File is not readable (permission denied)"
+        
+        # Check extension
+        ext = Path(filepath).suffix.lower()
+        if ext not in config.AUDIO_EXTENSIONS:
+            return False, f"Unsupported audio format: {ext}"
+        
+        # Validate with FFmpeg
+        try:
+            info = get_audio_info(filepath)
+            if not info:
+                return False, "Cannot read audio file (may be corrupted)"
+            
+            if info.get('duration', 0) <= 0:
+                return False, "Invalid audio duration"
+        
+        except Exception as e:
+            return False, f"Error reading audio: {str(e)}"
+        
+        # Check file size
+        size_valid, size_msg = Validator.validate_file_size(filepath)
+        if not size_valid:
+            return False, size_msg
+        
+        return True, "Audio is valid"
+    
+    # ========================================================================
+    # EXISTING FILE VALIDATION (kept as-is)
+    # ========================================================================
+    
     @staticmethod
     def is_valid_video_file(filepath: str) -> bool:
         """
@@ -463,7 +631,9 @@ class Validator:
             return False, f"Error checking file: {str(e)}"
 
 
-# Module-level convenience functions
+# ============================================================================
+# MODULE-LEVEL CONVENIENCE FUNCTIONS
+# ============================================================================
 
 def is_valid_url(url: str) -> bool:
     """Check if URL is valid"""
@@ -565,3 +735,27 @@ def validate_resolution(
 ) -> Tuple[bool, str]:
     """Validate video resolution"""
     return Validator.validate_video_resolution(filepath, min_width, min_height)
+
+
+# ============================================================================
+# NEW: LOCAL PATH VALIDATION FUNCTIONS
+# ============================================================================
+
+def is_valid_path(path: str) -> bool:
+    """Check if path is valid and accessible"""
+    return Validator.is_valid_path(path)
+
+
+def is_video_folder(folder_path: str) -> Tuple[bool, int]:
+    """Check if folder contains videos, returns (has_videos, count)"""
+    return Validator.is_video_folder(folder_path)
+
+
+def validate_local_video(filepath: str) -> Tuple[bool, str]:
+    """Comprehensive validation for local video file"""
+    return Validator.validate_local_video(filepath)
+
+
+def validate_local_audio(filepath: str) -> Tuple[bool, str]:
+    """Comprehensive validation for local audio file"""
+    return Validator.validate_local_audio(filepath)
