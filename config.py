@@ -97,6 +97,31 @@ MIN_SEGMENT_DURATION = 0.3
 MAX_SEGMENT_DURATION = 5.0
 
 # ============================================================================
+# IMAGE OVERLAY SETTINGS
+# ============================================================================
+# Animation types available
+IMAGE_OVERLAY_ANIMATIONS = [
+    'slide_bottom',
+    'slide_left', 
+    'slide_right',
+    'slide_top',
+    'fade',
+    'random'
+]
+
+# Image sizing
+IMAGE_OVERLAY_PADDING = 0.15  # 15% padding from edges (85% max size)
+IMAGE_MAX_SIZE_RATIO = 0.85  # Max 85% of frame size (15% padding from boundaries)
+
+# Animation settings
+IMAGE_ANIMATION_DURATION = 0.3  # Quick animations (0.3 seconds)
+IMAGE_FADE_IN_DURATION = 0.2  # Fade in duration
+IMAGE_FADE_OUT_DURATION = 0.2  # Fade out duration
+
+# Default timing
+IMAGE_DEFAULT_DELAY = 0.0  # No delay between images by default
+
+# ============================================================================
 # FFMPEG SETTINGS
 # ============================================================================
 FFMPEG_THREADS = os.cpu_count() or 4
@@ -185,6 +210,9 @@ ERROR_MESSAGES = {
     'cutting_failed': '❌ Video cutting failed',
     'invalid_audio': '❌ Invalid audio file',
     'ffmpeg_not_found': '❌ FFmpeg not found. Please install FFmpeg.',
+    'no_images': '❌ No images found in folder',
+    'invalid_image_folder': '❌ Invalid images folder',
+    'overlay_failed': '❌ Image overlay failed',
 }
 
 SUCCESS_MESSAGES = {
@@ -194,6 +222,7 @@ SUCCESS_MESSAGES = {
     'audio_analysis_complete': '✅ Audio analysis complete',
     'cutting_complete': '✅ Video cutting complete',
     'generation_complete': '✅ Video generation complete',
+    'overlay_complete': '✅ Image overlay complete',
 }
 
 # ============================================================================

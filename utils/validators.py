@@ -142,7 +142,7 @@ class Validator:
             return None
     
     # ========================================================================
-    # NEW: LOCAL PATH VALIDATION
+    # LOCAL PATH VALIDATION
     # ========================================================================
     
     @staticmethod
@@ -200,6 +200,36 @@ class Validator:
         except Exception as e:
             if config.DEBUG:
                 print(f"Error checking video folder: {str(e)}")
+            return False, 0
+    
+    @staticmethod
+    def is_image_folder(folder_path: str) -> Tuple[bool, int]:
+        """
+        Check if folder contains image files
+        
+        Args:
+            folder_path: Path to folder
+            
+        Returns:
+            Tuple of (has_images, count)
+        """
+        try:
+            if not os.path.isdir(folder_path):
+                return False, 0
+            
+            image_count = 0
+            for item in os.listdir(folder_path):
+                item_path = os.path.join(folder_path, item)
+                if os.path.isfile(item_path):
+                    ext = Path(item_path).suffix.lower()
+                    if ext in config.IMAGE_EXTENSIONS:
+                        image_count += 1
+            
+            return image_count > 0, image_count
+        
+        except Exception as e:
+            if config.DEBUG:
+                print(f"Error checking image folder: {str(e)}")
             return False, 0
     
     @staticmethod
@@ -305,6 +335,44 @@ class Validator:
         
         return True, "Audio is valid"
     
+    @staticmethod
+    def validate_local_image(filepath: str) -> Tuple[bool, str]:
+        """
+        Comprehensive validation for local image file
+        
+        Args:
+            filepath: Path to image file
+            
+        Returns:
+            Tuple of (is_valid, message)
+        """
+        # Check if file exists
+        if not os.path.exists(filepath):
+            return False, "File does not exist"
+        
+        # Check if it's a file
+        if not os.path.isfile(filepath):
+            return False, "Path is not a file"
+        
+        # Check if readable
+        if not os.access(filepath, os.R_OK):
+            return False, "File is not readable (permission denied)"
+        
+        # Check extension
+        ext = Path(filepath).suffix.lower()
+        if ext not in config.IMAGE_EXTENSIONS:
+            return False, f"Unsupported image format: {ext}"
+        
+        # Check file size (images shouldn't be too large)
+        try:
+            file_size_mb = os.path.getsize(filepath) / (1024 * 1024)
+            if file_size_mb > 50:  # 50MB limit for images
+                return False, f"Image too large: {file_size_mb:.2f}MB (max: 50MB)"
+        except Exception as e:
+            return False, f"Error checking file size: {str(e)}"
+        
+        return True, "Image is valid"
+    
     # ========================================================================
     # EXISTING FILE VALIDATION (kept as-is)
     # ========================================================================
@@ -371,6 +439,36 @@ class Validator:
                 return True
             
             return False
+        
+        except Exception:
+            return False
+    
+    @staticmethod
+    def is_valid_image_file(filepath: str) -> bool:
+        """
+        Check if file is a valid image
+        
+        Args:
+            filepath: Path to file
+            
+        Returns:
+            True if valid image file, False otherwise
+        """
+        try:
+            # Check if file exists
+            if not os.path.exists(filepath):
+                return False
+            
+            # Check extension
+            ext = Path(filepath).suffix.lower()
+            if ext not in config.IMAGE_EXTENSIONS:
+                return False
+            
+            # Check if readable
+            if not os.access(filepath, os.R_OK):
+                return False
+            
+            return True
         
         except Exception:
             return False
@@ -655,6 +753,11 @@ def is_valid_audio(filepath: str) -> bool:
     return Validator.is_valid_audio_file(filepath)
 
 
+def is_valid_image(filepath: str) -> bool:
+    """Check if file is a valid image"""
+    return Validator.is_valid_image_file(filepath)
+
+
 def validate_file_size(filepath: str, max_size_mb: Optional[int] = None) -> Tuple[bool, str]:
     """Validate file size"""
     return Validator.validate_file_size(filepath, max_size_mb)
@@ -738,7 +841,7 @@ def validate_resolution(
 
 
 # ============================================================================
-# NEW: LOCAL PATH VALIDATION FUNCTIONS
+# LOCAL PATH VALIDATION FUNCTIONS
 # ============================================================================
 
 def is_valid_path(path: str) -> bool:
@@ -751,6 +854,11 @@ def is_video_folder(folder_path: str) -> Tuple[bool, int]:
     return Validator.is_video_folder(folder_path)
 
 
+def is_image_folder(folder_path: str) -> Tuple[bool, int]:
+    """Check if folder contains images, returns (has_images, count)"""
+    return Validator.is_image_folder(folder_path)
+
+
 def validate_local_video(filepath: str) -> Tuple[bool, str]:
     """Comprehensive validation for local video file"""
     return Validator.validate_local_video(filepath)
@@ -759,3 +867,8 @@ def validate_local_video(filepath: str) -> Tuple[bool, str]:
 def validate_local_audio(filepath: str) -> Tuple[bool, str]:
     """Comprehensive validation for local audio file"""
     return Validator.validate_local_audio(filepath)
+
+
+def validate_local_image(filepath: str) -> Tuple[bool, str]:
+    """Comprehensive validation for local image file"""
+    return Validator.validate_local_image(filepath)

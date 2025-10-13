@@ -19,7 +19,7 @@ import config
 
 # Import modules
 from downloaders import youtube, instagram, pinterest
-from processors import normalizer, combiner, audio_analyzer, video_cutter
+from processors import normalizer, combiner, audio_analyzer, video_cutter, image_overlay
 from utils import validators, file_manager, ffmpeg_helper
 
 # Initialize Rich console
@@ -63,47 +63,29 @@ def interactive_mode():
         border_style="cyan"
     ))
     
+    # Show main menu
+    console.print("\n[bold cyan]What would you like to do?[/bold cyan]")
+    table = Table(show_header=True, header_style="bold cyan")
+    table.add_column("Option", style="cyan", width=8)
+    table.add_column("Description")
+    table.add_row("1", "Generate beat-synced reel (standard workflow)")
+    table.add_row("2", "Overlay images on video with animations")
+    
+    console.print(table)
+    
+    mode_choice = Prompt.ask(
+        "\n[cyan]Choose mode[/cyan]",
+        choices=["1", "2"],
+        default="1"
+    )
+    
     try:
-        # Step 1: Video Source Selection
-        console.print("\n[bold cyan]📥 STEP 1: Select Video Source[/bold cyan]")
-        video_paths = video_source_phase()
-        
-        if not video_paths:
-            console.print("[red]No videos selected. Exiting.[/red]")
-            return
-        
-        # Step 2: Normalization/Combination Phase
-        console.print("\n[bold cyan]🔧 STEP 2: Process Videos[/bold cyan]")
-        processed_video = process_videos_phase(video_paths)
-        
-        if not processed_video:
-            console.print("[red]Video processing failed. Exiting.[/red]")
-            return
-        
-        # Step 3: Audio Selection
-        console.print("\n[bold cyan]🎵 STEP 3: Select Audio[/bold cyan]")
-        audio_path = audio_selection_phase()
-        
-        if not audio_path:
-            console.print("[red]No audio selected. Exiting.[/red]")
-            return
-        
-        # Step 4: Cutting Configuration
-        console.print("\n[bold cyan]✂️  STEP 4: Configure Cuts[/bold cyan]")
-        cut_config = cutting_configuration_phase(audio_path)
-        
-        # Step 5: Generate Final Video
-        console.print("\n[bold cyan]🎬 STEP 5: Generate Video[/bold cyan]")
-        final_video = generate_video_phase(processed_video, audio_path, cut_config)
-        
-        if final_video:
-            console.print(Panel(
-                f"[bold green]✅ Success![/bold green]\n\n"
-                f"Your video is ready:\n[cyan]{final_video}[/cyan]",
-                border_style="green"
-            ))
-        else:
-            console.print("[red]Video generation failed.[/red]")
+        if mode_choice == "1":
+            # Standard reel generation workflow
+            standard_workflow()
+        elif mode_choice == "2":
+            # Image overlay workflow
+            image_overlay_workflow()
     
     except KeyboardInterrupt:
         console.print("\n[yellow]⚠️  Process interrupted by user[/yellow]")
@@ -112,6 +94,274 @@ def interactive_mode():
         console.print(f"[red]❌ Error: {str(e)}[/red]")
         if config.DEBUG:
             raise
+
+
+def standard_workflow():
+    """Standard beat-synced reel generation workflow"""
+    
+    # Step 1: Video Source Selection
+    console.print("\n[bold cyan]📥 STEP 1: Select Video Source[/bold cyan]")
+    video_paths = video_source_phase()
+    
+    if not video_paths:
+        console.print("[red]No videos selected. Exiting.[/red]")
+        return
+    
+    # Step 2: Normalization/Combination Phase
+    console.print("\n[bold cyan]🔧 STEP 2: Process Videos[/bold cyan]")
+    processed_video = process_videos_phase(video_paths)
+    
+    if not processed_video:
+        console.print("[red]Video processing failed. Exiting.[/red]")
+        return
+    
+    # Step 3: Audio Selection
+    console.print("\n[bold cyan]🎵 STEP 3: Select Audio[/bold cyan]")
+    audio_path = audio_selection_phase()
+    
+    if not audio_path:
+        console.print("[red]No audio selected. Exiting.[/red]")
+        return
+    
+    # Step 4: Cutting Configuration
+    console.print("\n[bold cyan]✂️  STEP 4: Configure Cuts[/bold cyan]")
+    cut_config = cutting_configuration_phase(audio_path)
+    
+    # Step 5: Generate Final Video
+    console.print("\n[bold cyan]🎬 STEP 5: Generate Video[/bold cyan]")
+    final_video = generate_video_phase(processed_video, audio_path, cut_config)
+    
+    if final_video:
+        console.print(Panel(
+            f"[bold green]✅ Success![/bold green]\n\n"
+            f"Your video is ready:\n[cyan]{final_video}[/cyan]",
+            border_style="green"
+        ))
+    else:
+        console.print("[red]Video generation failed.[/red]")
+
+
+def image_overlay_workflow():
+    """Image overlay workflow"""
+    
+    console.print("\n[bold cyan]🖼️  IMAGE OVERLAY MODE[/bold cyan]")
+    console.print("[dim]Overlay images from a folder onto a background video with animations[/dim]\n")
+    
+    # Step 1: Select background video
+    console.print("[bold cyan]STEP 1: Select Background Video[/bold cyan]")
+    
+    video_path = None
+    while not video_path:
+        path_input = Prompt.ask("\n[cyan]Enter background video path[/cyan]")
+        
+        # Resolve path
+        resolved = file_manager.resolve_path(path_input)
+        
+        if not resolved:
+            console.print("[red]Video not found. Please try again.[/red]")
+            continue
+        
+        # Validate video
+        is_valid, message = validators.validate_local_video(resolved)
+        
+        if not is_valid:
+            console.print(f"[red]Invalid video: {message}[/red]")
+            
+            if Confirm.ask("[yellow]Try anyway?[/yellow]", default=False):
+                video_path = resolved
+            continue
+        
+        video_path = resolved
+        
+        # Show video info
+        info = ffmpeg_helper.get_video_info(video_path)
+        if info:
+            console.print(
+                f"[green]✓[/green] Video: {Path(video_path).name} "
+                f"({info['width']}x{info['height']}, {info['duration']:.1f}s)"
+            )
+    
+    # Step 2: Select images folder
+    console.print("\n[bold cyan]STEP 2: Select Images Folder[/bold cyan]")
+    
+    images_folder = None
+    num_images = 0
+    
+    while not images_folder:
+        folder_input = Prompt.ask("\n[cyan]Enter folder path containing images[/cyan]")
+        
+        # Resolve path
+        resolved = file_manager.resolve_path(folder_input)
+        
+        if not resolved:
+            console.print("[red]Folder not found. Please try again.[/red]")
+            continue
+        
+        if not os.path.isdir(resolved):
+            console.print("[red]Path is not a folder. Please try again.[/red]")
+            continue
+        
+        # Check for images
+        images = image_overlay.get_images_from_folder(resolved)
+        
+        if not images:
+            console.print("[red]No images found in folder. Please try again.[/red]")
+            continue
+        
+        images_folder = resolved
+        num_images = len(images)
+        
+        console.print(f"[green]✓[/green] Found {num_images} images in folder")
+        
+        # Show first few image names
+        console.print("[dim]Images:[/dim]")
+        for img in images[:5]:
+            console.print(f"  [dim]- {Path(img).name}[/dim]")
+        if len(images) > 5:
+            console.print(f"  [dim]... and {len(images) - 5} more[/dim]")
+    
+    # Step 3: Configure timing
+    console.print("\n[bold cyan]STEP 3: Configure Timing[/bold cyan]")
+    
+    video_duration = ffmpeg_helper.get_video_duration(video_path)
+    
+    # Auto-calculate or manual?
+    auto_duration = Confirm.ask(
+        f"\n[cyan]Auto-calculate duration per image?[/cyan]\n"
+        f"[dim](Video is {video_duration:.1f}s, {num_images} images)[/dim]",
+        default=True
+    )
+    
+    duration_per_image = None
+    
+    if not auto_duration:
+        # Manual duration
+        default_duration = video_duration / num_images
+        duration_input = Prompt.ask(
+            f"[cyan]Duration per image (seconds)[/cyan]",
+            default=f"{default_duration:.2f}"
+        )
+        
+        try:
+            duration_per_image = float(duration_input)
+            if duration_per_image <= 0:
+                console.print("[yellow]Invalid duration, using auto-calculate[/yellow]")
+                duration_per_image = None
+        except ValueError:
+            console.print("[yellow]Invalid input, using auto-calculate[/yellow]")
+            duration_per_image = None
+    
+    # Delay between images
+    use_delay = Confirm.ask(
+        "\n[cyan]Add delay between images?[/cyan]",
+        default=False
+    )
+    
+    delay_between_images = 0.0
+    
+    if use_delay:
+        delay_input = Prompt.ask(
+            "[cyan]Delay duration (seconds)[/cyan]",
+            default="0.5"
+        )
+        
+        try:
+            delay_between_images = float(delay_input)
+            if delay_between_images < 0:
+                delay_between_images = 0.0
+        except ValueError:
+            delay_between_images = 0.0
+    
+    # Preview timing
+    console.print("\n[yellow]📊 Timing Preview:[/yellow]")
+    
+    preview = image_overlay.preview_image_timing(
+        num_images=num_images,
+        video_duration=video_duration,
+        duration_per_image=duration_per_image,
+        delay_between_images=delay_between_images
+    )
+    
+    if preview:
+        console.print(f"  Duration per image: [cyan]{preview['duration_per_image']:.2f}s[/cyan]")
+        console.print(f"  Delay between images: [cyan]{delay_between_images:.2f}s[/cyan]")
+        console.print(f"  Total timeline: [cyan]{preview['total_duration']:.2f}s[/cyan]")
+        
+        if preview['total_duration'] > video_duration:
+            console.print(f"  [yellow]⚠️  Warning: Timeline exceeds video duration (images will be cut off)[/yellow]")
+    
+    proceed = Confirm.ask("\n[cyan]Proceed with these settings?[/cyan]", default=True)
+    
+    if not proceed:
+        console.print("[yellow]Cancelled by user[/yellow]")
+        return
+    
+    # Step 4: Choose animation style
+    console.print("\n[bold cyan]STEP 4: Choose Animation Style[/bold cyan]")
+    
+    table = Table(show_header=True, header_style="bold cyan")
+    table.add_column("Option", style="cyan", width=8)
+    table.add_column("Animation Style")
+    table.add_row("1", "Random (mix of all styles)")
+    table.add_row("2", "Slide from bottom")
+    table.add_row("3", "Slide from top")
+    table.add_row("4", "Slide from left")
+    table.add_row("5", "Slide from right")
+    table.add_row("6", "Fade in/out")
+    
+    console.print(table)
+    
+    animation_choice = Prompt.ask(
+        "\n[cyan]Choose animation style[/cyan]",
+        choices=["1", "2", "3", "4", "5", "6"],
+        default="1"
+    )
+    
+    animation_map = {
+        "1": "random",
+        "2": "slide_bottom",
+        "3": "slide_top",
+        "4": "slide_left",
+        "5": "slide_right",
+        "6": "fade"
+    }
+    
+    animation_style = animation_map[animation_choice]
+    
+    # Step 5: Generate video
+    console.print("\n[bold cyan]🎬 STEP 5: Generate Video[/bold cyan]")
+    
+    output_filename = Prompt.ask(
+        "\n[cyan]Output filename[/cyan]",
+        default="overlay_video.mp4"
+    )
+    
+    output_path = str(config.OUTPUTS_DIR / output_filename)
+    
+    # Ensure unique path
+    output_path = file_manager.ensure_unique_path(output_path)
+    
+    console.print(f"\n[cyan]Generating video with image overlays...[/cyan]")
+    console.print(f"[dim]This may take a few minutes...[/dim]\n")
+    
+    with console.status("[cyan]Processing...[/cyan]"):
+        result = image_overlay.overlay_images_on_video(
+            video_path=video_path,
+            images_folder=images_folder,
+            output_path=output_path,
+            duration_per_image=duration_per_image,
+            delay_between_images=delay_between_images,
+            animation_style=animation_style
+        )
+    
+    if result:
+        console.print(Panel(
+            f"[bold green]✅ Success![/bold green]\n\n"
+            f"Your video with image overlays is ready:\n[cyan]{result}[/cyan]",
+            border_style="green"
+        ))
+    else:
+        console.print("[red]❌ Video generation failed[/red]")
 
 
 # ============================================================================
@@ -775,7 +1025,7 @@ def generate(urls, local_videos, local_folder, download_audio, audio_path, cut_m
         
         console.print(f"[green]✓[/green] Found {len(all_videos)} video(s)")
         
-        # Process videos - ALWAYS NORMALIZE TO REEL FORMAT (FIXED)
+        # Process videos - ALWAYS NORMALIZE TO REEL FORMAT
         console.print("\n[cyan]🔧 Processing videos...[/cyan]")
         console.print("[cyan]Normalizing to reel format (1080x1920)...[/cyan]")
         
@@ -850,6 +1100,85 @@ def generate(urls, local_videos, local_folder, download_audio, audio_path, cut_m
         
         if final:
             console.print(f"\n[green]✅ Video saved: {final}[/green]")
+        else:
+            console.print("[red]❌ Generation failed[/red]")
+            sys.exit(1)
+    
+    except Exception as e:
+        console.print(f"[red]❌ Error: {str(e)}[/red]")
+        if config.DEBUG:
+            raise
+        sys.exit(1)
+
+
+@cli.command()
+@click.option('--video', required=True, help='Background video path')
+@click.option('--images-folder', required=True, help='Folder containing images')
+@click.option('--duration-per-image', type=float, help='Duration each image shows (auto if not set)')
+@click.option('--delay', type=float, default=0.0, help='Delay between images in seconds')
+@click.option('--animation', default='random', 
+              type=click.Choice(['random', 'slide_bottom', 'slide_top', 'slide_left', 'slide_right', 'fade']),
+              help='Animation style')
+@click.option('--output', default='overlay_video.mp4', help='Output filename')
+def overlay_images(video, images_folder, duration_per_image, delay, animation, output):
+    """Overlay images from folder onto background video with animations"""
+    
+    console.print(Panel.fit(
+        "[bold cyan]Image Overlay Mode[/bold cyan]\n[dim]Non-interactive mode[/dim]",
+        border_style="cyan"
+    ))
+    
+    try:
+        # Validate inputs
+        is_valid, message = image_overlay.validate_overlay_inputs(
+            video_path=video,
+            images_folder=images_folder,
+            duration_per_image=duration_per_image
+        )
+        
+        if not is_valid:
+            console.print(f"[red]❌ Validation failed: {message}[/red]")
+            sys.exit(1)
+        
+        console.print(f"[green]✓[/green] {message}")
+        
+        # Get images count
+        images = image_overlay.get_images_from_folder(images_folder)
+        console.print(f"[cyan]Found {len(images)} images[/cyan]")
+        
+        # Preview timing
+        video_duration = ffmpeg_helper.get_video_duration(video)
+        preview = image_overlay.preview_image_timing(
+            num_images=len(images),
+            video_duration=video_duration,
+            duration_per_image=duration_per_image,
+            delay_between_images=delay
+        )
+        
+        if preview:
+            console.print(f"[dim]Duration per image: {preview['duration_per_image']:.2f}s[/dim]")
+            console.print(f"[dim]Total timeline: {preview['total_duration']:.2f}s[/dim]")
+        
+        # Generate output path
+        output_path = str(config.OUTPUTS_DIR / output)
+        output_path = file_manager.ensure_unique_path(output_path)
+        
+        console.print(f"\n[cyan]🎬 Generating video with image overlays...[/cyan]")
+        console.print(f"[dim]This may take a few minutes...[/dim]\n")
+        
+        # Process
+        with console.status("[cyan]Processing...[/cyan]"):
+            result = image_overlay.overlay_images_on_video(
+                video_path=video,
+                images_folder=images_folder,
+                output_path=output_path,
+                duration_per_image=duration_per_image,
+                delay_between_images=delay,
+                animation_style=animation
+            )
+        
+        if result:
+            console.print(f"\n[green]✅ Video saved: {result}[/green]")
         else:
             console.print("[red]❌ Generation failed[/red]")
             sys.exit(1)

@@ -1,19 +1,36 @@
-# Core video/audio processing
-yt-dlp>=2024.12.0
-gallery-dl>=1.27.0
-ffmpeg-python>=0.2.0
-
-# Audio analysis
-librosa>=0.10.0
-scipy>=1.11.0
-numpy>=1.24.0
-soundfile>=0.12.0
-
-# CLI and UI
-click>=8.1.0
-rich>=13.0.0
-
-# Utilities
-requests>=2.31.0
-validators>=0.22.0
-python-dotenv>=1.0.0
+audioread==3.0.1
+certifi==2025.10.5
+cffi==2.0.0
+charset-normalizer==3.4.3
+click==8.3.0
+decorator==5.2.1
+ffmpeg-python==0.2.0
+future==1.0.0
+gallery_dl==1.30.9
+idna==3.10
+joblib==1.5.2
+lazy_loader==0.4
+librosa==0.11.0
+llvmlite==0.45.1
+markdown-it-py==4.0.0
+mdurl==0.1.2
+msgpack==1.1.2
+numba==0.62.1
+numpy==2.2.6
+packaging==25.0
+platformdirs==4.5.0
+pooch==1.8.2
+pycparser==2.23
+Pygments==2.19.2
+python-dotenv==1.1.1
+requests==2.32.5
+rich==14.2.0
+scikit-learn==1.7.2
+scipy==1.15.3
+soundfile==0.13.1
+soxr==1.0.0
+threadpoolctl==3.6.0
+typing_extensions==4.15.0
+urllib3==2.5.0
+validators==0.35.0
+yt-dlp==2025.9.26
