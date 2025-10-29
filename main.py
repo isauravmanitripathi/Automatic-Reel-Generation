@@ -22,6 +22,9 @@ from downloaders import youtube, instagram, pinterest
 from processors import normalizer, combiner, audio_analyzer, video_cutter, image_overlay
 from utils import validators, file_manager, ffmpeg_helper
 
+# Import workflows
+from workflows.text_overlay_workflow import text_overlay_workflow
+
 # Initialize Rich console
 console = Console()
 
@@ -70,12 +73,13 @@ def interactive_mode():
     table.add_column("Description")
     table.add_row("1", "Generate beat-synced reel (standard workflow)")
     table.add_row("2", "Overlay images on video with animations")
+    table.add_row("3", "Add text/logo overlay with background box")
     
     console.print(table)
     
     mode_choice = Prompt.ask(
         "\n[cyan]Choose mode[/cyan]",
-        choices=["1", "2"],
+        choices=["1", "2", "3"],
         default="1"
     )
     
@@ -86,6 +90,9 @@ def interactive_mode():
         elif mode_choice == "2":
             # Image overlay workflow
             image_overlay_workflow()
+        elif mode_choice == "3":
+            # Text overlay workflow
+            text_overlay_workflow()
     
     except KeyboardInterrupt:
         console.print("\n[yellow]⚠️  Process interrupted by user[/yellow]")

@@ -1,7 +1,7 @@
 ================================================================================
 PYTHON FILES EXTRACTION
 Root Folder: /Volumes/hard-drive/better-reel-gen
-Total Files: 17
+Total Files: 18
 ================================================================================
 
 
@@ -247,6 +247,248 @@ VERBOSE = os.getenv('VERBOSE', 'False').lower() == 'true'
 # ============================================================================
 VERSION = '1.0.0'
 APP_NAME = 'Better Reel Generator'
+
+
+================================================================================
+FILE: download-youtube.py
+================================================================================
+
+#!/usr/bin/env python3
+"""
+YouTube Downloader with yt-dlp
+Downloads best quality video/audio and re-encodes for Mac compatibility
+"""
+
+import subprocess
+import sys
+import os
+import shutil
+
+
+def check_dependencies():
+    """Check if yt-dlp and ffmpeg are installed"""
+    dependencies = {
+        'yt-dlp': 'yt-dlp',
+        'ffmpeg': 'ffmpeg'
+    }
+    
+    missing = []
+    for name, command in dependencies.items():
+        # Use shutil.which() to find the command in PATH
+        # This works even in virtual environments
+        if shutil.which(command):
+            print(f"✓ {name} is installed")
+        else:
+            missing.append(name)
+            print(f"✗ {name} is NOT installed")
+    
+    if missing:
+        print("\nPlease install missing dependencies:")
+        for dep in missing:
+            if dep == 'yt-dlp':
+                print("  pip install yt-dlp")
+            elif dep == 'ffmpeg':
+                print("  brew install ffmpeg  (on Mac)")
+        sys.exit(1)
+
+
+def get_url():
+    """Get URL from user"""
+    while True:
+        url = input("\nEnter the video URL: ").strip()
+        if url:
+            return url
+        print("Please enter a valid URL")
+
+
+def get_download_type():
+    """Ask user whether to download audio or video"""
+    while True:
+        print("\nWhat would you like to download?")
+        print("1. Video (MP4)")
+        print("2. Audio (MP3)")
+        choice = input("Enter your choice (1 or 2): ").strip()
+        
+        if choice == '1':
+            return 'video'
+        elif choice == '2':
+            return 'audio'
+        else:
+            print("Invalid choice. Please enter 1 or 2.")
+
+
+def check_video_availability(url):
+    """Check if video is available and get info"""
+    print("\n🔍 Checking video availability...")
+    
+    command = [
+        'yt-dlp',
+        '--dump-json',
+        '--no-warnings',
+        url
+    ]
+    
+    try:
+        result = subprocess.run(command, capture_output=True, text=True, check=True)
+        print("✓ Video is available")
+        return True
+    except subprocess.CalledProcessError as e:
+        print(f"\n❌ Cannot access this video. Possible reasons:")
+        print("   • Video is age-restricted")
+        print("   • Video is private or deleted")
+        print("   • Video is geo-blocked in your region")
+        print("   • Invalid URL")
+        print("\nTry:")
+        print("   • Using a different video URL")
+        print("   • Checking if you can watch it in your browser")
+        return False
+
+
+def download_video(url, output_dir='downloads'):
+    """Download video in best quality and re-encode to MP4"""
+    print("\n🎬 Downloading video...")
+    
+    # Create output directory if it doesn't exist
+    os.makedirs(output_dir, exist_ok=True)
+    
+    # yt-dlp options for video with multiple fallback formats
+    command = [
+        'yt-dlp',
+        # Try best quality first, with multiple fallbacks
+        '--format', 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/bestvideo+bestaudio/best',
+        '--merge-output-format', 'mp4',
+        '--output', f'{output_dir}/%(title)s.%(ext)s',
+        # Re-encode to ensure Mac compatibility
+        '--postprocessor-args', 'ffmpeg:-c:v libx264 -c:a aac -movflags +faststart',
+        '--progress',
+        '--no-warnings',
+        # Add cookies if needed for age-restricted content
+        '--cookies-from-browser', 'chrome',  # Try to use Chrome cookies
+        url
+    ]
+    
+    try:
+        subprocess.run(command, check=True)
+        print("\n✅ Video downloaded successfully!")
+        print(f"📁 Location: {output_dir}/")
+        return True
+    except subprocess.CalledProcessError as e:
+        # Try without cookies as fallback
+        print("\n⚠️  First attempt failed, trying alternative method...")
+        
+        command_no_cookies = [
+            'yt-dlp',
+            '--format', 'best',  # Simple fallback
+            '--merge-output-format', 'mp4',
+            '--output', f'{output_dir}/%(title)s.%(ext)s',
+            '--postprocessor-args', 'ffmpeg:-c:v libx264 -c:a aac -movflags +faststart',
+            '--progress',
+            '--no-warnings',
+            url
+        ]
+        
+        try:
+            subprocess.run(command_no_cookies, check=True)
+            print("\n✅ Video downloaded successfully!")
+            print(f"📁 Location: {output_dir}/")
+            return True
+        except subprocess.CalledProcessError:
+            print(f"\n❌ Error downloading video")
+            print("This video cannot be downloaded. Please try a different video.")
+            return False
+
+
+def download_audio(url, output_dir='downloads'):
+    """Download audio and convert to MP3"""
+    print("\n🎵 Downloading audio...")
+    
+    # Create output directory if it doesn't exist
+    os.makedirs(output_dir, exist_ok=True)
+    
+    # yt-dlp options for audio
+    command = [
+        'yt-dlp',
+        '--extract-audio',
+        '--audio-format', 'mp3',
+        '--audio-quality', '0',  # Best quality
+        '--output', f'{output_dir}/%(title)s.%(ext)s',
+        '--postprocessor-args', 'ffmpeg:-ar 48000 -b:a 320k',
+        '--progress',
+        '--no-warnings',
+        '--cookies-from-browser', 'chrome',
+        url
+    ]
+    
+    try:
+        subprocess.run(command, check=True)
+        print("\n✅ Audio downloaded successfully!")
+        print(f"📁 Location: {output_dir}/")
+        return True
+    except subprocess.CalledProcessError:
+        # Try without cookies
+        print("\n⚠️  First attempt failed, trying alternative method...")
+        
+        command_no_cookies = [
+            'yt-dlp',
+            '--extract-audio',
+            '--audio-format', 'mp3',
+            '--audio-quality', '0',
+            '--output', f'{output_dir}/%(title)s.%(ext)s',
+            '--postprocessor-args', 'ffmpeg:-ar 48000 -b:a 320k',
+            '--progress',
+            '--no-warnings',
+            url
+        ]
+        
+        try:
+            subprocess.run(command_no_cookies, check=True)
+            print("\n✅ Audio downloaded successfully!")
+            print(f"📁 Location: {output_dir}/")
+            return True
+        except subprocess.CalledProcessError:
+            print(f"\n❌ Error downloading audio")
+            print("This video cannot be downloaded. Please try a different video.")
+            return False
+
+
+def main():
+    """Main function"""
+    print("=" * 50)
+    print("YouTube Downloader with yt-dlp")
+    print("=" * 50)
+    
+    # Check dependencies
+    check_dependencies()
+    
+    # Get user input
+    url = get_url()
+    
+    # Check if video is available
+    if not check_video_availability(url):
+        sys.exit(1)
+    
+    download_type = get_download_type()
+    
+    # Download based on user choice
+    success = False
+    if download_type == 'video':
+        success = download_video(url)
+    else:
+        success = download_audio(url)
+    
+    if success:
+        print("\n✨ Done!")
+    else:
+        print("\n⚠️  Download failed. Please try a different video.")
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except KeyboardInterrupt:
+        print("\n\n👋 Download cancelled by user")
+        sys.exit(0)
 
 
 ================================================================================
@@ -3313,8 +3555,9 @@ FILE: processors/image_overlay.py
 ================================================================================
 
 """
-Image Overlay Processor - Overlay images on video with animations
-Handles image loading, resizing, timing, and animated overlays
+Image Overlay Processor - COMPLETE FIX
+Overlay images on video with animations
+Uses position animations + enable expressions (no fade filters to avoid timing conflicts)
 """
 
 import os
@@ -3420,6 +3663,11 @@ class ImageOverlayProcessor:
                 animation_duration=animation_duration
             )
             
+            if config.VERBOSE or config.DEBUG:
+                print(f"\n=== FILTER COMPLEX ===")
+                print(filter_complex)
+                print(f"======================\n")
+            
             # Execute FFmpeg command
             success = self._execute_ffmpeg(
                 video_path=video_path,
@@ -3436,6 +3684,8 @@ class ImageOverlayProcessor:
         except Exception as e:
             if config.DEBUG:
                 print(f"Error in image overlay process: {str(e)}")
+                import traceback
+                traceback.print_exc()
             return None
     
     def _load_images_from_folder(self, folder_path: str) -> List[str]:
@@ -3493,35 +3743,71 @@ class ImageOverlayProcessor:
             # Auto-calculate duration if not provided
             if duration_per_image is None:
                 # Calculate based on video duration and number of images
+                # Account for delays AFTER each image (except the last one)
                 total_delay_time = delay_between_images * (num_images - 1) if num_images > 1 else 0
                 available_time = video_duration - total_delay_time
                 
                 if available_time <= 0:
-                    if config.DEBUG:
-                        print("Video too short for delays")
-                    return None
+                    if config.VERBOSE:
+                        print("Video too short for delays, removing delays")
+                    # Fallback: no delays, just fit images
+                    delay_between_images = 0
+                    available_time = video_duration
                 
                 duration_per_image = available_time / num_images
+                
+                # Ensure minimum duration
+                if duration_per_image < 1.0:
+                    duration_per_image = 1.0
+                    if config.VERBOSE:
+                        print(f"Warning: Setting minimum duration of 1.0s per image")
             
-            # Calculate start times for each image
+            # Calculate start and end times for each image
             start_times = []
-            for i in range(num_images):
-                start_time = i * (duration_per_image + delay_between_images)
-                start_times.append(start_time)
+            end_times = []
+            current_time = 0.0
             
-            # Check if total time exceeds video duration
-            total_time = start_times[-1] + duration_per_image
+            for i in range(num_images):
+                start_times.append(current_time)
+                current_time += duration_per_image
+                end_times.append(current_time)
+                
+                # Add delay after each image except the last one
+                if i < num_images - 1:
+                    current_time += delay_between_images
+            
+            # Check if we exceed video duration
+            total_time = end_times[-1]
             
             if total_time > video_duration:
+                # Scale everything down proportionally
+                scale_factor = video_duration / total_time
+                
                 if config.VERBOSE:
-                    print(f"Warning: Total time ({total_time:.2f}s) exceeds video duration ({video_duration:.2f}s)")
-                    print("Images will be cut off at video end")
+                    print(f"Timeline exceeds video duration, scaling by {scale_factor:.3f}")
+                
+                start_times = [t * scale_factor for t in start_times]
+                end_times = [t * scale_factor for t in end_times]
+                duration_per_image = duration_per_image * scale_factor
+                total_time = video_duration
+            
+            if config.VERBOSE:
+                print(f"\n=== TIMING INFO ===")
+                print(f"Number of images: {num_images}")
+                print(f"Duration per image: {duration_per_image:.2f}s")
+                print(f"Delay between images: {delay_between_images:.2f}s")
+                print(f"Total timeline: {total_time:.2f}s")
+                for i in range(num_images):
+                    print(f"  Image {i+1}: {start_times[i]:.2f}s - {end_times[i]:.2f}s")
+                print(f"===================\n")
             
             return {
                 'duration_per_image': duration_per_image,
                 'start_times': start_times,
+                'end_times': end_times,
                 'num_images': num_images,
                 'total_duration': total_time,
+                'delay_between_images': delay_between_images,
             }
         
         except Exception as e:
@@ -3603,77 +3889,6 @@ class ImageOverlayProcessor:
             max_height = int(video_height * config.IMAGE_MAX_SIZE_RATIO)
             return max_width, max_height
     
-    def _get_animation_filter(
-        self,
-        animation_style: str,
-        video_width: int,
-        video_height: int,
-        img_width: int,
-        img_height: int,
-        start_time: float,
-        duration: float,
-        animation_duration: float
-    ) -> str:
-        """
-        Generate animation filter for image overlay
-        
-        Args:
-            animation_style: Type of animation
-            video_width: Video width
-            video_height: Video height
-            img_width: Image width
-            img_height: Image height
-            start_time: When image appears
-            duration: How long image shows
-            animation_duration: Duration of slide animation
-            
-        Returns:
-            FFmpeg overlay filter string
-        """
-        # Calculate center position
-        center_x = (video_width - img_width) // 2
-        center_y = (video_height - img_height) // 2
-        
-        # Choose random animation if requested
-        if animation_style == 'random':
-            animation_style = random.choice([
-                'slide_bottom', 'slide_left', 'slide_right', 'slide_top', 'fade'
-            ])
-        
-        # End time for fade out
-        end_time = start_time + duration
-        fade_out_start = end_time - 0.2  # Start fade out 0.2s before end
-        
-        # Build animation based on style
-        if animation_style == 'slide_bottom':
-            # Start below screen, slide up to center
-            start_y = video_height
-            overlay_expr = f"x={center_x}:y='if(lt(t,{start_time}),{start_y},if(lt(t,{start_time + animation_duration}),{start_y}-(({start_y}-{center_y})*(t-{start_time})/{animation_duration}),{center_y}))'"
-        
-        elif animation_style == 'slide_top':
-            # Start above screen, slide down to center
-            start_y = -img_height
-            overlay_expr = f"x={center_x}:y='if(lt(t,{start_time}),{start_y},if(lt(t,{start_time + animation_duration}),{start_y}+(({center_y}-{start_y})*(t-{start_time})/{animation_duration}),{center_y}))'"
-        
-        elif animation_style == 'slide_left':
-            # Start left of screen, slide right to center
-            start_x = -img_width
-            overlay_expr = f"x='if(lt(t,{start_time}),{start_x},if(lt(t,{start_time + animation_duration}),{start_x}+(({center_x}-{start_x})*(t-{start_time})/{animation_duration}),{center_x}))':y={center_y}"
-        
-        elif animation_style == 'slide_right':
-            # Start right of screen, slide left to center
-            start_x = video_width
-            overlay_expr = f"x='if(lt(t,{start_time}),{start_x},if(lt(t,{start_time + animation_duration}),{start_x}-(({start_x}-{center_x})*(t-{start_time})/{animation_duration}),{center_x}))':y={center_y}"
-        
-        else:  # fade
-            # Simple fade in/out at center
-            overlay_expr = f"x={center_x}:y={center_y}"
-        
-        # Add enable expression for timing
-        overlay_expr += f":enable='between(t,{start_time},{end_time})'"
-        
-        return overlay_expr
-    
     def _build_filter_complex(
         self,
         image_paths: List[str],
@@ -3685,6 +3900,7 @@ class ImageOverlayProcessor:
     ) -> str:
         """
         Build FFmpeg filter_complex for all image overlays
+        Uses ONLY position animations and enable expressions (no fade filters)
         
         Args:
             image_paths: List of image paths
@@ -3699,10 +3915,10 @@ class ImageOverlayProcessor:
         """
         filters = []
         
-        duration_per_image = timing_info['duration_per_image']
         start_times = timing_info['start_times']
+        end_times = timing_info['end_times']
         
-        # Process each image
+        # STEP 1: Scale and prepare all images
         for i, img_path in enumerate(image_paths):
             # Calculate dimensions
             img_width, img_height = self._calculate_image_dimensions(
@@ -3711,57 +3927,168 @@ class ImageOverlayProcessor:
                 video_height
             )
             
-            start_time = start_times[i]
-            
-            # Scale filter (if needed)
-            scale_filter = f"[{i + 1}:v]scale={img_width}:{img_height}:force_original_aspect_ratio=decrease"
-            
-            # Fade in/out filter
-            fade_in_duration = min(0.2, animation_duration)
-            fade_out_duration = 0.2
-            fade_out_start = duration_per_image - fade_out_duration
-            
-            fade_filter = f"fade=t=in:st=0:d={fade_in_duration}:alpha=1,fade=t=out:st={fade_out_start}:d={fade_out_duration}:alpha=1"
-            
-            # Combine scale and fade
-            filters.append(f"{scale_filter},{fade_filter}[img{i}]")
+            # Scale and add alpha channel for transparency support
+            # format=yuva420p adds alpha channel
+            scale_filter = (
+                f"[{i + 1}:v]"
+                f"scale={img_width}:{img_height}:force_original_aspect_ratio=decrease,"
+                f"format=yuva420p"
+                f"[img{i}]"
+            )
+            filters.append(scale_filter)
         
-        # Build overlay chain
-        # Start with base video
-        current_input = "[0:v]"
+        # STEP 2: Build overlay chain with position-based animations
+        current_layer = "[0:v]"
         
-        for i in range(len(image_paths)):
+        for i, img_path in enumerate(image_paths):
             img_width, img_height = self._calculate_image_dimensions(
-                image_paths[i],
+                img_path,
                 video_width,
                 video_height
             )
             
             start_time = start_times[i]
+            end_time = end_times[i]
+            actual_duration = end_time - start_time
             
-            # Get animation overlay expression
-            overlay_expr = self._get_animation_filter(
-                animation_style=animation_style,
+            # Calculate center position
+            center_x = (video_width - img_width) // 2
+            center_y = (video_height - img_height) // 2
+            
+            # Choose animation style for this image
+            current_animation = animation_style
+            if animation_style == 'random':
+                current_animation = random.choice([
+                    'slide_bottom', 'slide_left', 'slide_right', 'slide_top', 'fade'
+                ])
+            
+            # Animation timing
+            anim_duration = min(animation_duration, actual_duration * 0.25)  # Max 25% of duration
+            exit_start_time = end_time - anim_duration
+            
+            # Build position expressions based on animation type
+            x_expr, y_expr = self._build_animation_expressions(
+                animation_type=current_animation,
                 video_width=video_width,
                 video_height=video_height,
                 img_width=img_width,
                 img_height=img_height,
+                center_x=center_x,
+                center_y=center_y,
                 start_time=start_time,
-                duration=duration_per_image,
-                animation_duration=animation_duration
+                end_time=end_time,
+                anim_duration=anim_duration,
+                exit_start_time=exit_start_time
             )
             
-            # Last overlay outputs to final
+            # Enable expression - show image only during its time window
+            enable_expr = f"between(t,{start_time},{end_time})"
+            
+            # Create overlay
             if i == len(image_paths) - 1:
-                filters.append(f"{current_input}[img{i}]overlay={overlay_expr}")
+                # Last overlay - output to final
+                overlay_cmd = (
+                    f"{current_layer}[img{i}]overlay="
+                    f"x='{x_expr}':y='{y_expr}':enable='{enable_expr}'"
+                )
             else:
-                filters.append(f"{current_input}[img{i}]overlay={overlay_expr}[tmp{i}]")
-                current_input = f"[tmp{i}]"
+                # Intermediate overlay
+                overlay_cmd = (
+                    f"{current_layer}[img{i}]overlay="
+                    f"x='{x_expr}':y='{y_expr}':enable='{enable_expr}'[tmp{i}]"
+                )
+                current_layer = f"[tmp{i}]"
+            
+            filters.append(overlay_cmd)
         
-        # Join all filters
+        # Join all filters with semicolons
         filter_complex = ";".join(filters)
         
         return filter_complex
+    
+    def _build_animation_expressions(
+        self,
+        animation_type: str,
+        video_width: int,
+        video_height: int,
+        img_width: int,
+        img_height: int,
+        center_x: int,
+        center_y: int,
+        start_time: float,
+        end_time: float,
+        anim_duration: float,
+        exit_start_time: float
+    ) -> Tuple[str, str]:
+        """
+        Build x and y position expressions for animation
+        
+        Returns:
+            Tuple of (x_expr, y_expr)
+        """
+        
+        if animation_type == 'slide_bottom':
+            # Enter from bottom, exit to bottom
+            off_screen_y = video_height + 100  # Start below screen
+            
+            x_expr = str(center_x)
+            y_expr = (
+                f"if(lt(t,{start_time}),{off_screen_y},"  # Before start: off-screen
+                f"if(lt(t,{start_time + anim_duration}),"  # Entry animation
+                f"{off_screen_y}-(({off_screen_y}-{center_y})*(t-{start_time})/{anim_duration}),"
+                f"if(lt(t,{exit_start_time}),{center_y},"  # Static at center
+                f"{center_y}+(({off_screen_y}-{center_y})*(t-{exit_start_time})/{anim_duration})"  # Exit animation
+                f")))"
+            )
+        
+        elif animation_type == 'slide_top':
+            # Enter from top, exit to top
+            off_screen_y = -img_height - 100  # Start above screen
+            
+            x_expr = str(center_x)
+            y_expr = (
+                f"if(lt(t,{start_time}),{off_screen_y},"
+                f"if(lt(t,{start_time + anim_duration}),"
+                f"{off_screen_y}+(({center_y}-{off_screen_y})*(t-{start_time})/{anim_duration}),"
+                f"if(lt(t,{exit_start_time}),{center_y},"
+                f"{center_y}-(({center_y}-{off_screen_y})*(t-{exit_start_time})/{anim_duration})"
+                f")))"
+            )
+        
+        elif animation_type == 'slide_left':
+            # Enter from left, exit to left
+            off_screen_x = -img_width - 100  # Start left of screen
+            
+            y_expr = str(center_y)
+            x_expr = (
+                f"if(lt(t,{start_time}),{off_screen_x},"
+                f"if(lt(t,{start_time + anim_duration}),"
+                f"{off_screen_x}+(({center_x}-{off_screen_x})*(t-{start_time})/{anim_duration}),"
+                f"if(lt(t,{exit_start_time}),{center_x},"
+                f"{center_x}-(({center_x}-{off_screen_x})*(t-{exit_start_time})/{anim_duration})"
+                f")))"
+            )
+        
+        elif animation_type == 'slide_right':
+            # Enter from right, exit to right
+            off_screen_x = video_width + 100  # Start right of screen
+            
+            y_expr = str(center_y)
+            x_expr = (
+                f"if(lt(t,{start_time}),{off_screen_x},"
+                f"if(lt(t,{start_time + anim_duration}),"
+                f"{off_screen_x}-(({off_screen_x}-{center_x})*(t-{start_time})/{anim_duration}),"
+                f"if(lt(t,{exit_start_time}),{center_x},"
+                f"{center_x}+(({off_screen_x}-{center_x})*(t-{exit_start_time})/{anim_duration})"
+                f")))"
+            )
+        
+        else:  # 'fade' - no position animation, just static centered position
+            # The enable expression handles visibility
+            x_expr = str(center_x)
+            y_expr = str(center_y)
+        
+        return x_expr, y_expr
     
     def _execute_ffmpeg(
         self,
@@ -3789,9 +4116,9 @@ class ImageOverlayProcessor:
             # Add video input
             cmd.extend(['-i', video_path])
             
-            # Add all image inputs
+            # Add all image inputs with loop
             for img_path in image_paths:
-                cmd.extend(['-i', img_path])
+                cmd.extend(['-loop', '1', '-i', img_path])
             
             # Add filter complex
             cmd.extend(['-filter_complex', filter_complex])
@@ -3804,13 +4131,15 @@ class ImageOverlayProcessor:
                 '-c:a', 'copy',  # Copy audio stream
                 '-movflags', 'faststart',
                 '-threads', str(config.FFMPEG_THREADS),
+                '-shortest',  # Stop when shortest input ends (the video)
                 '-y',  # Overwrite output
                 output_path
             ])
             
-            if config.VERBOSE:
-                print(f"Executing FFmpeg command...")
-                print(f"Command: {' '.join(cmd)}")
+            if config.VERBOSE or config.DEBUG:
+                print(f"\n=== FFMPEG COMMAND ===")
+                print(' '.join(cmd))
+                print(f"======================\n")
             
             # Execute
             result = subprocess.run(
@@ -3821,14 +4150,21 @@ class ImageOverlayProcessor:
             
             if result.returncode != 0:
                 if config.DEBUG:
-                    print(f"FFmpeg error: {result.stderr}")
+                    print(f"FFmpeg error (return code {result.returncode}):")
+                    print(f"STDERR: {result.stderr}")
+                    print(f"STDOUT: {result.stdout}")
                 return False
+            
+            if config.VERBOSE:
+                print(f"✓ Video created successfully: {output_path}")
             
             return True
         
         except Exception as e:
             if config.DEBUG:
                 print(f"Error executing FFmpeg: {str(e)}")
+                import traceback
+                traceback.print_exc()
             return False
     
     def preview_timing(
@@ -3865,18 +4201,21 @@ class ImageOverlayProcessor:
             'num_images': num_images,
             'video_duration': video_duration,
             'duration_per_image': timing_info['duration_per_image'],
-            'delay_between_images': delay_between_images,
+            'delay_between_images': timing_info.get('delay_between_images', delay_between_images),
             'total_duration': timing_info['total_duration'],
             'timeline': []
         }
         
-        for i, start_time in enumerate(timing_info['start_times']):
-            end_time = start_time + timing_info['duration_per_image']
+        for i in range(len(timing_info['start_times'])):
+            start_time = timing_info['start_times'][i]
+            end_time = timing_info['end_times'][i]
+            actual_duration = end_time - start_time
+            
             preview['timeline'].append({
                 'image_index': i + 1,
                 'start': f"{start_time:.2f}s",
                 'end': f"{end_time:.2f}s",
-                'duration': f"{timing_info['duration_per_image']:.2f}s"
+                'duration': f"{actual_duration:.2f}s"
             })
         
         return preview
@@ -3903,8 +4242,7 @@ def overlay_images_on_video(
         output_path: Output video path
         duration_per_image: Duration each image shows (auto if None)
         delay_between_images: Gap between images in seconds
-        animation_style: Animation type ('slide_bottom', 'slide_left', 'slide_right',
-                       'slide_top', 'fade', 'random')
+        animation_style: Animation type
         
     Returns:
         Path to output video or None if failed
@@ -3928,15 +4266,6 @@ def preview_image_timing(
 ) -> Optional[Dict]:
     """
     Preview timing configuration for images
-    
-    Args:
-        num_images: Number of images
-        video_duration: Video duration in seconds
-        duration_per_image: Duration per image (auto if None)
-        delay_between_images: Delay between images
-        
-    Returns:
-        Dict with timing preview
     """
     processor = ImageOverlayProcessor()
     return processor.preview_timing(
@@ -3950,12 +4279,6 @@ def preview_image_timing(
 def get_images_from_folder(folder_path: str) -> List[str]:
     """
     Get list of images from folder
-    
-    Args:
-        folder_path: Path to folder
-        
-    Returns:
-        List of image paths
     """
     processor = ImageOverlayProcessor()
     return processor._load_images_from_folder(folder_path)
@@ -3968,14 +4291,6 @@ def validate_overlay_inputs(
 ) -> Tuple[bool, str]:
     """
     Validate inputs for image overlay
-    
-    Args:
-        video_path: Path to video
-        images_folder: Path to images folder
-        duration_per_image: Duration per image
-        
-    Returns:
-        Tuple of (is_valid, message)
     """
     # Check video
     if not os.path.exists(video_path):

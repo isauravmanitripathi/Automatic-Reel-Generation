@@ -14,6 +14,12 @@ from .image_overlay import (
     validate_overlay_inputs,
     ImageOverlayProcessor
 )
+from .text_overlay import (
+    overlay_text_on_video,
+    TextOverlayProcessor,
+    validate_text_overlay_inputs,
+    preview_text_overlay,
+)
 
 __all__ = [
     # Normalizer
@@ -40,6 +46,12 @@ __all__ = [
     'get_images_from_folder',
     'validate_overlay_inputs',
     'ImageOverlayProcessor',
+    
+    # Text Overlay
+    'overlay_text_on_video',
+    'TextOverlayProcessor',
+    'validate_text_overlay_inputs',
+    'preview_text_overlay',
 ]
 
 __version__ = '1.0.0'

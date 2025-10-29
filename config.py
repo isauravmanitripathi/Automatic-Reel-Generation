@@ -122,6 +122,33 @@ IMAGE_FADE_OUT_DURATION = 0.2  # Fade out duration
 IMAGE_DEFAULT_DELAY = 0.0  # No delay between images by default
 
 # ============================================================================
+# TEXT OVERLAY SETTINGS
+# ============================================================================
+# Available colors
+TEXT_OVERLAY_COLORS = {
+    'black': '0x000000',
+    'white': '0xFFFFFF',
+    'red': '0xFF0000',
+    'blue': '0x0000FF',
+    'green': '0x00FF00',
+    'yellow': '0xFFFF00',
+}
+
+# Default settings
+TEXT_OVERLAY_DEFAULT_BOX_COLOR = 'black'
+TEXT_OVERLAY_DEFAULT_TEXT_COLOR = 'white'
+TEXT_OVERLAY_DEFAULT_OPACITY = 0.7
+
+# Layout settings
+TEXT_OVERLAY_PADDING = 20              # Padding inside box (pixels)
+TEXT_OVERLAY_BOTTOM_MARGIN = 30        # Distance from bottom edge (pixels)
+TEXT_OVERLAY_MIN_FONT_SIZE = 24        # Minimum font size (pixels)
+TEXT_OVERLAY_MAX_FONT_SIZE = 72        # Maximum font size (pixels)
+
+# Font settings
+TEXT_OVERLAY_FONT_PATH = None          # None = system default font
+
+# ============================================================================
 # FFMPEG SETTINGS
 # ============================================================================
 FFMPEG_THREADS = os.cpu_count() or 4
